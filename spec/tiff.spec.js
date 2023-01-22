@@ -20,4 +20,26 @@ describe('reads tiff correctly', () => {
             }
         }*/
     });
+
+    it('reads palette.tif correctly', () => {
+        const data = readImage('palette.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.height).toEqual(9);
+        expect(result.width).toEqual(9);
+        for(let i=0;i<9;i++) {
+            expect(result.getRgb(i, 0)[0]).toEqual(255);
+            expect(result.getRgb(i, 0)[1]).toEqual(0);
+            expect(result.getRgb(i, 0)[2]).toEqual(0);
+        }
+        for(let i=0;i<9;i++) {
+            expect(result.getRgb(i, 1)[0]).toEqual(0);
+            expect(result.getRgb(i, 1)[1]).toEqual(255);
+            expect(result.getRgb(i, 1)[2]).toEqual(0);
+        }
+        for(let i=0;i<9;i++) {
+            expect(result.getRgb(i, 2)[0]).toEqual(0);
+            expect(result.getRgb(i, 2)[1]).toEqual(0);
+            expect(result.getRgb(i, 2)[2]).toEqual(255);
+        }
+    })
 });

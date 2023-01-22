@@ -25,70 +25,107 @@ TiffDecoder.prototype.decodeIfd = function(buf) {
         const {tag, value} = this.readEntry(buf);
         map.set(tag, value);
     }
-    // should wrap Tag data in a class and throw if tags incorrect/absent
+    console.log(map);
 
-    const width = map.get(Tag.ImageWidth)[0];
-    const height = map.get(Tag.ImageLength)[0];
-
-    const stripOffsets = map.get(Tag.StripOffsets);
-    let stripByteCounts = map.get(Tag.StripByteCounts);
-    const rowsPerStrip = map.get(Tag.RowsPerStrip)[0];
-    const compression = map.get(Tag.Compression)[0];
-
-    // this won't support 4 bits
-    const bytesPerSample = map.get(Tag.BitsPerSample)[0] / 8;
-
-    const pmi = map.get(Tag.PhotometricInterpolation)[0];
-
-
-    // try to infer strip byte counts
-    if(stripByteCounts === undefined) {
-        if(compression !== 1) {
-            throw new Error('Missing StripByteCounts');
-        }
-        stripByteCounts = [];
-        let rows = height;
-        for(let i=0;i<stripOffsets.length;i++) {
-            if(rows >= rowsPerStrip) {
-                stripByteCounts.push(rowsPerStrip * width * bytesPerSample);
-            } else {
-                stripByteCounts.push(rows * width * bytesPerSample);
-            }
-            rows -= rowsPerStrip;
-        }
-    }
-
-    if(stripOffsets.length !== stripByteCounts.length) {
-        throw new Error('Strip offset and byte count lengths are not equal');
-    }
+    const ifdMeta = new IfdMetaData(map);
 
     // R, G, B array
-    const builder = new TiffDataBuilder(width, height);
-    for(let i=0;i<stripOffsets.length;i++) {
-        const stripOffset = stripOffsets[i];
-        let stripBytes = stripByteCounts[i];
+    switch(ifdMeta.imageType) {
+        case IfdImageType.Bilevel:
+            return this.decodeBilevel(ifdMeta, buf);
+        case IfdImageType.Grayscale:
+            return this.decodeGrayscale(ifdMeta, buf);
+        case IfdImageType.PaletteColor:
+            return this.decodePaletteColor(ifdMeta, buf);
+        case IfdImageType.Rgb:
+            return this.decodeRgb(ifdMeta, buf);
+        default:
+            throw new Error('Unexpected image type');
+    }
+}
+
+TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf) {
+    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
+        const stripOffset = ifdMeta.stripOffsets[i];
+        let stripBytes = ifdMeta.stripByteCounts[i];
         buf.seek(stripOffset);
-        while(stripBytes > 0) {
-            // need to convert this properly
-            const v = buf.readUint(bytesPerSample);
-            if(pmi === 0) {
+        while(stripBytes-- > 0) {
+            const v = buf.readUint8();
+            if(ifdMeta.pmi === 0) {
                 if(v === 0) {
                     builder.addRgb(0xff, 0xff, 0xff);
                 } else {
                     builder.addRgb(0, 0, 0);
                 }
-            } else if(pmi === 1) {
+            } else {
                 if(v === 0) {
                     builder.addRgb(0, 0, 0);
                 } else {
-                    builder.addRgb(0xffff, 0xffff, 0xffff);
+                    builder.addRgb(0xff, 0xff, 0xff);
                 }
             }
-            stripBytes -= bytesPerSample;
         }
     }
+    return builder.build();
+}
 
+TiffDecoder.prototype.decodeGrayscale = function(ifdMeta, buf) {
+    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+    const maxColor = (2 ** ifdMeta.bitsPerSample) - 1;
+    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
+        const stripOffset = ifdMeta.stripOffsets[i];
+        let stripBytes = ifdMeta.stripByteCounts[i];
+        buf.seek(stripOffset);
+        while(stripBytes-- > 0) {
+            // assume v <= maxColor
+            let rawValue = buf.readUint8();
+            if(ifdMeta.pmi === 0) {
+                rawValue = maxColor - rawValue;
+            }
+            const v = 255 * rawValue / maxColor;
+            builder.addRgb(v, v, v);
+        }
+    }
+    return builder.build();
+}
 
+TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf) {
+    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
+        const stripOffset = ifdMeta.stripOffsets[i];
+        let stripBytes = ifdMeta.stripByteCounts[i];
+        buf.seek(stripOffset);
+        while(stripBytes > 0) {
+            // assume bits per sample is 8, 8, 8
+            const r = buf.readUint8();
+            const g = buf.readUint8();
+            const b = buf.readUint8();
+            builder.addRgb(r, g, b);
+            stripBytes -= 3;
+        }
+    }
+    return builder.build();
+}
+
+TiffDecoder.prototype.decodePaletteColor = function(ifdMeta, buf) {
+    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+    const l = ifdMeta.colorMap.length / 3;
+    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
+        const stripOffset = ifdMeta.stripOffsets[i];
+        let stripBytes = ifdMeta.stripByteCounts[i];
+        buf.seek(stripOffset);
+
+        while(stripBytes-- > 0) {
+            // TODO verify if colors are correct
+            const v = buf.readUint8();
+
+            const r = Math.floor(ifdMeta.colorMap[v] / 256);
+            const g = Math.floor(ifdMeta.colorMap[v + l] / 256);
+            const b = Math.floor(ifdMeta.colorMap[v + l * 2] / 256);
+            builder.addRgb(r, g, b);
+        }
+    }
     return builder.build();
 }
 
@@ -97,7 +134,7 @@ TiffDecoder.prototype.readEntry = function(buf) {
     const type = buf.readUint16();
     const count = buf.readUint32();
 
-
+    // TODO should ignore unsupported tags
     if(type < 1 || type > 6) {
         throw new Error(`Unsupported type ${type}`);
     }
@@ -143,6 +180,108 @@ function TiffData(width, height, data) {
 TiffData.prototype.getRgb = function(x, y) {
     let idx = (x + y * this.width) * 3;
     return this.data.slice(idx, idx + 3);
+}
+
+const IfdImageType = {
+    Bilevel: 0,
+    Grayscale: 1,
+    PaletteColor: 2,
+    Rgb: 3
+}
+function IfdMetaData(map) {
+    // TODO implement resolution
+    this.map = map;
+
+    // validate properties
+    this._assertSingle('ImageWidth', Tag.ImageWidth);
+    this._assertSingle('ImageLength', Tag.ImageLength);
+    this._assertSingle('RowPerStrip', Tag.RowsPerStrip);
+    this._assertSingle('Compression', Tag.Compression);
+
+
+    this.width = map.get(Tag.ImageWidth)[0];
+    this.height = map.get(Tag.ImageLength)[0];
+
+    this.stripOffsets = map.get(Tag.StripOffsets);
+    this.stripByteCounts = map.get(Tag.StripByteCounts);
+    this.rowsPerStrip = map.get(Tag.RowsPerStrip)[0];
+    this.compression = map.get(Tag.Compression)[0];
+
+
+    // should set image type
+    this.pmi = map.get(Tag.PhotometricInterpolation)[0];
+
+    switch(this.pmi) {
+        case 0:
+        case 1: // Bilevel or grayscale
+            if(map.get(Tag.BitsPerSample) == null) {
+                this.bitsPerSample = 8;
+                this.imageType = IfdImageType.Bilevel;
+                break;
+            }
+            this.imageType = IfdImageType.Grayscale;
+            this.bitsPerSample = map.get(Tag.BitsPerSample)[0];
+            break;
+        case 2: // RGB
+            this.imageType = IfdImageType.Rgb;
+            this.bitsPerSample = map.get(Tag.BitsPerSample); // should be 8, 8, 8
+            break;
+        case 3: // Palette Color
+            this.imageType = IfdImageType.PaletteColor
+            this.bitsPerSample = map.get(Tag.BitsPerSample)[0];
+            this.colorMap = map.get(Tag.ColorMap);
+            if(this.colorMap.length !== (2 ** this.bitsPerSample) * 3) {
+                throw new Error(`Color map length ${this.colorMap.length} 
+                not appropriate for bits per sample ${this.bitsPerSample}`);
+            }
+            break;
+        default:
+            throw new Error(`Invalid PMI ${this.pmi}`);
+    }
+
+    // try to infer strip byte counts
+    if(this.stripByteCounts === undefined) {
+        this.stripByteCounts = this._inferStripByteCounts(
+            this.compression, this.rowsPerStrip, this.stripOffsets,
+            this.bitsPerSample, this.width, this.height);
+    }
+
+    if(this.stripOffsets.length !== this.stripByteCounts.length) {
+        throw new Error('Strip offset and byte count lengths are not equal');
+    }
+
+    // TODO support other compression types
+    if(this.compression !== 1) {
+        throw new Error(`Unsupported compression type ${this.compression}`);
+    }
+}
+
+IfdMetaData.prototype._assertSingle = function(name, key) {
+    const list = this.map.get(key);
+    if(list == null) {
+        throw new Error(`Param ${name} should not be null/undefined`);
+    }
+    if(list.length !== 1) {
+        throw new Error(`Param ${name} has length ${list.length} instead of 1`);
+    }
+}
+
+IfdMetaData.prototype._inferStripByteCounts = function(
+    compression, rowsPerStrip, stripOffsets, bitsPerSample, width, height) {
+    if(compression !== 1) {
+        throw new Error('Missing StripByteCounts');
+    }
+    const stripByteCounts = [];
+    let rows = height;
+    for(let i=0;i<stripOffsets.length;i++) {
+        if(rows >= rowsPerStrip) {
+            stripByteCounts.push(rowsPerStrip * width * bitsPerSample / 8);
+        } else {
+            stripByteCounts.push(rows * width * bitsPerSample / 8);
+        }
+        rows -= rowsPerStrip;
+    }
+    return stripByteCounts;
 }
 
 function Buffer(byteArray) {
@@ -213,7 +352,7 @@ const lookupType = {
         size: 8,
         read: (buf) => buf.readUint32()
     },
-    6: { //SBYTE
+    6: { // SBYTE
         size: 1,
         read: (buf) => buf.readInt8()
     }
@@ -234,6 +373,13 @@ const Tag = {
     ResolutionUnit: 296,
     ColorMap: 320
 }
+
+/*
+Notes
+- how do we pack bitsPerSample = 4?
+- dealing with bitsPerSample > 8
+
+ */
 
 
 module.exports = {
