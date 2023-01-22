@@ -1,0 +1,14 @@
+{
+  "name": "tiff_practice",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/tiff.js",
+  "scripts": {
+    "test": "jasmine"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jasmine": "^4.5.0"
+  }
+}
