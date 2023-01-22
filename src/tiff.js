@@ -22,111 +22,103 @@ TiffDecoder.prototype.decodeIfd = function(buf) {
     const nEntries = buf.readUint16();
     const map = new Map();
     for(let i=0;i<nEntries;i++) {
-        const {tag, value} = this.readEntry(buf);
-        map.set(tag, value);
+        try {
+            const {tag, value} = this.readEntry(buf);
+            map.set(tag, value);
+        } catch(e) {}
     }
     console.log(map);
 
     const ifdMeta = new IfdMetaData(map);
 
-    // R, G, B array
-    switch(ifdMeta.imageType) {
-        case IfdImageType.Bilevel:
-            return this.decodeBilevel(ifdMeta, buf);
-        case IfdImageType.Grayscale:
-            return this.decodeGrayscale(ifdMeta, buf);
-        case IfdImageType.PaletteColor:
-            return this.decodePaletteColor(ifdMeta, buf);
-        case IfdImageType.Rgb:
-            return this.decodeRgb(ifdMeta, buf);
-        default:
-            throw new Error('Unexpected image type');
-    }
-}
-
-TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf) {
     const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
     for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
         const stripOffset = ifdMeta.stripOffsets[i];
-        let stripBytes = ifdMeta.stripByteCounts[i];
-        buf.seek(stripOffset);
-        while(stripBytes-- > 0) {
-            const v = buf.readUint8();
-            if(ifdMeta.pmi === 0) {
-                if(v === 0) {
-                    builder.addRgb(0xff, 0xff, 0xff);
-                } else {
-                    builder.addRgb(0, 0, 0);
-                }
+        const stripBytes = ifdMeta.stripByteCounts[i];
+        const strip = this.decompressStrip(ifdMeta, buf.slice(stripOffset, stripBytes));
+        buf.seek(stripOffset + stripBytes);
+
+        switch(ifdMeta.imageType) {
+            case IfdImageType.Bilevel:
+                this.decodeBilevel(ifdMeta, strip, builder);
+                break;
+            case IfdImageType.Grayscale:
+                this.decodeGrayscale(ifdMeta, strip, builder);
+                break;
+            case IfdImageType.PaletteColor:
+                this.decodePaletteColor(ifdMeta, strip, builder);
+                break;
+            case IfdImageType.Rgb:
+                this.decodeRgb(ifdMeta, strip, builder);
+                break;
+            default:
+                throw new Error('Unexpected image type');
+        }
+
+    }
+    return builder.build();
+}
+
+TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
+    if(ifdMeta.compression === 1) {
+        return strip;
+    }
+    return new LzwDecompress().decompress(strip);
+}
+
+TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
+    while(!buf.atEnd()) {
+        const v = buf.readUint8();
+        if(ifdMeta.pmi === 0) {
+            if(v === 0) {
+                builder.addRgb(0xff, 0xff, 0xff);
             } else {
-                if(v === 0) {
-                    builder.addRgb(0, 0, 0);
-                } else {
-                    builder.addRgb(0xff, 0xff, 0xff);
-                }
+                builder.addRgb(0, 0, 0);
+            }
+        } else {
+            if(v === 0) {
+                builder.addRgb(0, 0, 0);
+            } else {
+                builder.addRgb(0xff, 0xff, 0xff);
             }
         }
     }
-    return builder.build();
 }
 
-TiffDecoder.prototype.decodeGrayscale = function(ifdMeta, buf) {
-    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+TiffDecoder.prototype.decodeGrayscale = function(ifdMeta, buf, builder) {
     const maxColor = (2 ** ifdMeta.bitsPerSample) - 1;
-    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
-        const stripOffset = ifdMeta.stripOffsets[i];
-        let stripBytes = ifdMeta.stripByteCounts[i];
-        buf.seek(stripOffset);
-        while(stripBytes-- > 0) {
-            // assume v <= maxColor
-            let rawValue = buf.readUint8();
-            if(ifdMeta.pmi === 0) {
-                rawValue = maxColor - rawValue;
-            }
-            const v = 255 * rawValue / maxColor;
-            builder.addRgb(v, v, v);
+    while(!buf.atEnd()) {
+        // assume v <= maxColor
+        let rawValue = buf.readUint8();
+        if(ifdMeta.pmi === 0) {
+            rawValue = maxColor - rawValue;
         }
+        const v = 255 * rawValue / maxColor;
+        builder.addRgb(v, v, v);
     }
-    return builder.build();
 }
 
-TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf) {
-    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
-    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
-        const stripOffset = ifdMeta.stripOffsets[i];
-        let stripBytes = ifdMeta.stripByteCounts[i];
-        buf.seek(stripOffset);
-        while(stripBytes > 0) {
-            // assume bits per sample is 8, 8, 8
-            const r = buf.readUint8();
-            const g = buf.readUint8();
-            const b = buf.readUint8();
-            builder.addRgb(r, g, b);
-            stripBytes -= 3;
-        }
+TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf, builder) {
+    while(!buf.atEnd()) {
+        // assume bits per sample is 8, 8, 8
+        const r = buf.readUint8();
+        const g = buf.readUint8();
+        const b = buf.readUint8();
+        builder.addRgb(r, g, b);
     }
-    return builder.build();
 }
 
-TiffDecoder.prototype.decodePaletteColor = function(ifdMeta, buf) {
-    const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
+TiffDecoder.prototype.decodePaletteColor = function(ifdMeta, buf, builder) {
     const l = ifdMeta.colorMap.length / 3;
-    for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
-        const stripOffset = ifdMeta.stripOffsets[i];
-        let stripBytes = ifdMeta.stripByteCounts[i];
-        buf.seek(stripOffset);
+    while(!buf.atEnd()) {
+        // TODO verify if colors are correct
+        const v = buf.readUint8();
 
-        while(stripBytes-- > 0) {
-            // TODO verify if colors are correct
-            const v = buf.readUint8();
-
-            const r = Math.floor(ifdMeta.colorMap[v] / 256);
-            const g = Math.floor(ifdMeta.colorMap[v + l] / 256);
-            const b = Math.floor(ifdMeta.colorMap[v + l * 2] / 256);
-            builder.addRgb(r, g, b);
-        }
+        const r = Math.floor(ifdMeta.colorMap[v] / 256);
+        const g = Math.floor(ifdMeta.colorMap[v + l] / 256);
+        const b = Math.floor(ifdMeta.colorMap[v + l * 2] / 256);
+        builder.addRgb(r, g, b);
     }
-    return builder.build();
 }
 
 TiffDecoder.prototype.readEntry = function(buf) {
@@ -136,6 +128,7 @@ TiffDecoder.prototype.readEntry = function(buf) {
 
     // TODO should ignore unsupported tags
     if(type < 1 || type > 6) {
+        buf.skip(4);
         throw new Error(`Unsupported type ${type}`);
     }
     const typeObj = lookupType[type];
@@ -251,7 +244,7 @@ function IfdMetaData(map) {
     }
 
     // TODO support other compression types
-    if(this.compression !== 1) {
+    if(this.compression !== 1 && this.compression !== 5) {
         throw new Error(`Unsupported compression type ${this.compression}`);
     }
 }
@@ -285,8 +278,9 @@ IfdMetaData.prototype._inferStripByteCounts = function(
 }
 
 function Buffer(byteArray) {
+    // TODO this is roundabout
     this.buffer= byteArray.buffer;
-    this.data = new DataView(this.buffer);
+    this.data = new DataView(this.buffer, byteArray.byteOffset, byteArray.byteLength);
     this.offset = 0;
 }
 
@@ -327,6 +321,22 @@ Buffer.prototype.clone = function() {
     const buf = new Buffer(this.buffer);
     buf.skip(this.offset);
     return buf;
+}
+
+Buffer.prototype.slice = function(offset, length) {
+    const byteArray = new Uint8Array(this.buffer, offset, length);
+    return new Buffer(byteArray);
+}
+
+Buffer.prototype.atEnd = function() {
+    return this.offset === this.data.byteLength;
+}
+
+function LzwDecompress() {
+}
+
+LzwDecompress.prototype.decompress = function() {
+
 }
 
 // constants
@@ -378,6 +388,8 @@ const Tag = {
 Notes
 - how do we pack bitsPerSample = 4?
 - dealing with bitsPerSample > 8
+- we should probably not be downsampling 48bit rgb
+- support big endian
 
  */
 
