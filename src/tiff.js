@@ -5,9 +5,10 @@ function TiffDecoder() {
 TiffDecoder.prototype.decode = function(data) {
     // data must be uint8array buffer
     const buf = new Buffer(data);
-
-    //only allow little endian
-    if(buf.readUint16() !== 0x4949 || buf.readUint16() !== 42) {
+    const endianHeader = buf.readUint16();
+    if(endianHeader === 0x4d4d) {
+        buf.setLittleEndian(false);
+    } else if(endianHeader !== 0x4949 || buf.readUint16() !== 42) {
         throw new Error("Invalid header");
     }
 
@@ -282,6 +283,11 @@ function Buffer(byteArray) {
     this.buffer= byteArray.buffer;
     this.data = new DataView(this.buffer, byteArray.byteOffset, byteArray.byteLength);
     this.offset = 0;
+    this.littleEndian = true;
+}
+
+Buffer.prototype.setLittleEndian = function(b) {
+    this.littleEndian = b;
 }
 
 Buffer.prototype.readUint = function(bytes) {
@@ -298,13 +304,13 @@ Buffer.prototype.readUint8 = function() {
 }
 
 Buffer.prototype.readUint16 = function() {
-    const ret = this.data.getUint16(this.offset, true);
+    const ret = this.data.getUint16(this.offset, this.littleEndian);
     this.offset += 2;
     return ret;
 }
 
 Buffer.prototype.readUint32 = function() {
-    const ret = this.data.getUint32(this.offset, true);
+    const ret = this.data.getUint32(this.offset, this.littleEndian);
     this.offset += 4;
     return ret;
 }
@@ -332,10 +338,45 @@ Buffer.prototype.atEnd = function() {
     return this.offset === this.data.byteLength;
 }
 
-function LzwDecompress() {
+function BitBuffer(buffer) {
+    this.buffer = buffer;
+    this.remainingBits = 0;
+    this.cachedByte = 0;
 }
 
-LzwDecompress.prototype.decompress = function() {
+BitBuffer.prototype.readBits = function(n) {
+    let result = 0;
+    while(n > 0) {
+        if (this.remainingBits === 0) {
+            this.cachedByte = this.buffer.readUint8();
+            this.remainingBits += 8;
+        } else if (this.remainingBits !== 8) {
+            this.cachedByte &= (1 << this.remainingBits) - 1;
+        }
+        let bitsToTake = n;
+        if (bitsToTake > this.remainingBits) {
+            bitsToTake = this.remainingBits;
+        }
+        result |= this.cachedByte >> (this.remainingBits - bitsToTake);
+        this.remainingBits -= bitsToTake;
+        n -= bitsToTake;
+    }
+    return result;
+}
+
+function LzwDecompress() {
+    this.table = new Map();
+}
+
+LzwDecompress.prototype.decompress = function(buf) {
+    while(!buf.atEnd()) {
+        const b = buf.readUint8();
+
+    }
+
+}
+
+LzwDecompress.prototype._isInTable = function() {
 
 }
 

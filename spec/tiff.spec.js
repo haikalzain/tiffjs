@@ -5,6 +5,23 @@ function readImage(name) {
     return fs.readFileSync(path.join(__dirname, '../img', name));
 }
 
+describe('bitbuffer reads correctly', () => {
+    it('reads simple correctly', () => {
+
+    })
+})
+
+describe('decodes strips correctly', () => {
+    it('decodes little endian rgb strip', () => {
+
+    });
+
+    it('decodes big endian rgb strip', () => {
+
+    })
+
+});
+
 describe('reads tiff correctly', () => {
     it('reads black.tif correctly', () => {
         const data = readImage('black.tif');
