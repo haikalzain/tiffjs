@@ -19,7 +19,7 @@ const lookupType = {
         size: 8,
         read: (buf) => buf.readUint32()
     },
-    6: { //SBYTE
+    6: { // SBYTE
         size: 1,
         read: (buf) => buf.readInt8()
     }
