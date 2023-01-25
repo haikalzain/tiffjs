@@ -15,12 +15,12 @@ let tiffDecoder = new tiff.TiffDecoder();
     const rgbaImageData = ctx.createImageData(canvas.width, canvas.height);
     console.log(canvas.height, canvas.width);
     for(let i=0;i<canvas.height * canvas.width;i++) {
-        rgbaImageData.data[4 * i] = imgData[3 * i];
-        rgbaImageData.data[4 * i + 1] = imgData[3 * i + 1];
-        rgbaImageData.data[4 * i + 2] = imgData[3 * i + 2];
-        rgbaImageData.data[4 * i + 3] = 255;
+        rgbaImageData.data[4 * i] = imgData[4 * i];
+        rgbaImageData.data[4 * i + 1] = imgData[4 * i + 1];
+        rgbaImageData.data[4 * i + 2] = imgData[4 * i + 2];
+        rgbaImageData.data[4 * i + 3] = imgData[4 * i + 3];
     }
-
+    //rgbaImageData.data = imgData;
     ctx.putImageData(rgbaImageData, 0, 0);
     //console.log('done');
     //console.log(rgbaImageData);

@@ -1,60 +1,61 @@
-function Buffer(byteArray) {
+function ByteBuffer(byteArray) {
     // TODO this is roundabout
+    this.byteArray = byteArray;
     this.buffer= byteArray.buffer;
     this.data = new DataView(this.buffer, byteArray.byteOffset, byteArray.byteLength);
     this.offset = 0;
     this.littleEndian = true;
 }
 
-Buffer.prototype.setLittleEndian = function(b) {
+ByteBuffer.prototype.setLittleEndian = function(b) {
     this.littleEndian = b;
 }
 
-Buffer.prototype.readUint = function(bytes) {
+ByteBuffer.prototype.readUint = function(bytes) {
     if(bytes === 1) return this.readUint8();
     if(bytes === 2) return this.readUint16();
     if(bytes === 4) return this.readUint32();
     throw new Error(`Unsupported readUint for ${bytes} bytes`)
 }
 
-Buffer.prototype.readUint8 = function() {
+ByteBuffer.prototype.readUint8 = function() {
     const ret = this.data.getUint8(this.offset);
     this.offset++;
     return ret;
 }
 
-Buffer.prototype.readUint16 = function() {
+ByteBuffer.prototype.readUint16 = function() {
     const ret = this.data.getUint16(this.offset, this.littleEndian);
     this.offset += 2;
     return ret;
 }
 
-Buffer.prototype.readUint32 = function() {
+ByteBuffer.prototype.readUint32 = function() {
     const ret = this.data.getUint32(this.offset, this.littleEndian);
     this.offset += 4;
     return ret;
 }
 
-Buffer.prototype.seek = function(i) {
+ByteBuffer.prototype.seek = function(i) {
     this.offset = i;
 }
 
-Buffer.prototype.skip = function(i) {
+ByteBuffer.prototype.skip = function(i) {
     this.offset += i;
 }
 
-Buffer.prototype.clone = function() {
-    const buf = new Buffer(this.buffer);
+ByteBuffer.prototype.clone = function() {
+    const buf = new ByteBuffer(this.buffer);
     buf.skip(this.offset);
     return buf;
 }
 
-Buffer.prototype.slice = function(offset, length) {
-    const byteArray = new Uint8Array(this.buffer, offset, length);
-    return new Buffer(byteArray);
+ByteBuffer.prototype.slice = function(offset, length) {
+    const byteArray = new Uint8Array(this.buffer, this.byteArray.byteOffset + offset, length);
+    return new ByteBuffer(byteArray);
 }
 
-Buffer.prototype.atEnd = function() {
+ByteBuffer.prototype.atEnd = function() {
     return this.offset === this.data.byteLength;
 }
 
@@ -73,10 +74,8 @@ BitBuffer.prototype.readBits = function(n) {
         } else if (this.remainingBits !== 8) {
             this.cachedByte &= (1 << this.remainingBits) - 1;
         }
-        let bitsToTake = n;
-        if (bitsToTake > this.remainingBits) {
-            bitsToTake = this.remainingBits;
-        }
+        let bitsToTake = Math.min(n, this.remainingBits);
+        result = result << bitsToTake;
         result |= this.cachedByte >> (this.remainingBits - bitsToTake);
         this.remainingBits -= bitsToTake;
         n -= bitsToTake;
@@ -84,7 +83,15 @@ BitBuffer.prototype.readBits = function(n) {
     return result;
 }
 
+BitBuffer.prototype.atEnd = function() {
+    return this.buffer.atEnd() && this.remainingBits === 0;
+}
+
+BitBuffer.prototype.skipRemainingBits = function() {
+    this.remainingBits = 0;
+}
+
 module.exports = {
-    Buffer,
+    ByteBuffer,
     BitBuffer
 }

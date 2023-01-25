@@ -1,17 +1,21 @@
 const {lookupType, Tag} = require("./constants");
-const {Buffer} = require("./buffer");
+const {ByteBuffer, BitBuffer} = require("./buffer");
 
 function TiffDecoder() {
 }
 
 TiffDecoder.prototype.decode = function(data) {
     // data must be uint8array buffer
-    const buf = new Buffer(data);
+    const buf = new ByteBuffer(data);
     const endianHeader = buf.readUint16();
     if(endianHeader === 0x4d4d) {
         buf.setLittleEndian(false);
-    } else if(endianHeader !== 0x4949 || buf.readUint16() !== 42) {
+    } else if(endianHeader !== 0x4949) {
         throw new Error("Invalid header");
+    }
+
+    if(buf.readUint16() !== 42) {
+        throw new Error('Invalid header');
     }
 
     const ifdOffset = buf.readUint32();
@@ -21,7 +25,7 @@ TiffDecoder.prototype.decode = function(data) {
     return ifd;
 }
 
-TiffDecoder.prototype.decodeIfd = function(buf) {
+TiffDecoder.prototype.decodeIfdMeta = function(buf) {
     const nEntries = buf.readUint16();
     const map = new Map();
     for(let i=0;i<nEntries;i++) {
@@ -30,10 +34,12 @@ TiffDecoder.prototype.decodeIfd = function(buf) {
             map.set(tag, value);
         } catch(e) {}
     }
-    console.log(map);
 
-    const ifdMeta = new IfdMetaData(map);
+    return new IfdMetaData(map);
+}
 
+TiffDecoder.prototype.decodeIfd = function(buf) {
+    const ifdMeta = this.decodeIfdMeta(buf);
     const builder = new TiffDataBuilder(ifdMeta.width, ifdMeta.height);
     for(let i=0;i<ifdMeta.stripOffsets.length;i++) {
         const stripOffset = ifdMeta.stripOffsets[i];
@@ -107,15 +113,46 @@ TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf, builder) {
         const r = buf.readUint8();
         const g = buf.readUint8();
         const b = buf.readUint8();
-        builder.addRgb(r, g, b);
+        // TODO finish supporting extrasamples
+        if(ifdMeta.samplesPerPixel === 4) {
+            const a = buf.readUint8();
+            builder.addRgba(r, g, b, a);
+        } else {
+            builder.addRgb(r, g, b);
+        }
     }
+}
+
+function getBitReader(buf, n, columnLength) {
+    if(n === 8) {
+        return [() => buf.readUint8(), () => buf.atEnd()];
+    }
+    if(n === 16) {
+        return [() => buf.readUint16(), () => buf.atEnd()];
+    }
+    const bitBuffer = new BitBuffer(buf);
+    let counter = 0;
+    return [
+        () => {
+            const v = bitBuffer.readBits(n);
+            counter++;
+            // ensure that bytes are aligned to columns
+            if(columnLength === counter) {
+                counter = 0;
+                bitBuffer.skipRemainingBits();
+            }
+            return v;
+        },
+        () => bitBuffer.atEnd()
+    ];
 }
 
 TiffDecoder.prototype.decodePaletteColor = function(ifdMeta, buf, builder) {
     const l = ifdMeta.colorMap.length / 3;
-    while(!buf.atEnd()) {
+    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
+    while(!atEnd()) {
         // TODO verify if colors are correct
-        const v = buf.readUint8();
+        const v = readNext();
 
         const r = Math.floor(ifdMeta.colorMap[v] / 256);
         const g = Math.floor(ifdMeta.colorMap[v + l] / 256);
@@ -151,18 +188,26 @@ TiffDecoder.prototype.readEntry = function(buf) {
 function TiffDataBuilder(width, height) {
     this.width = width;
     this.height = height;
-    this.data = new Uint8Array(width * height * 3);
+    this.data = new Uint8Array(width * height * 4);
     this.offset = 0;
 }
 
+TiffDataBuilder.prototype.atEnd = function() {
+    return this.offset === this.data.length;
+}
+
 TiffDataBuilder.prototype.addRgb = function(r, g, b) {
+    this.addRgba(r, g, b, 255);
+}
+
+TiffDataBuilder.prototype.addRgba = function(r, g, b, a) {
     this.data[this.offset++] = r;
     this.data[this.offset++] = g;
     this.data[this.offset++] = b;
+    this.data[this.offset++] = a;
 }
 
 TiffDataBuilder.prototype.build = function() {
-    console.assert(this.offset === this.data.length);
     return new TiffData(this.width, this.height, this.data);
 }
 
@@ -174,7 +219,7 @@ function TiffData(width, height, data) {
 }
 
 TiffData.prototype.getRgb = function(x, y) {
-    let idx = (x + y * this.width) * 3;
+    let idx = (x + y * this.width) * 4;
     return this.data.slice(idx, idx + 3);
 }
 
@@ -220,7 +265,9 @@ function IfdMetaData(map) {
             break;
         case 2: // RGB
             this.imageType = IfdImageType.Rgb;
-            this.bitsPerSample = map.get(Tag.BitsPerSample); // should be 8, 8, 8
+            this.bitsPerSample = map.get(Tag.BitsPerSample); // TODO parse 1, 4, 16 bit
+            this.samplesPerPixel = map.get(Tag.SamplesPerPixel)[0];
+            // TODO also need to parse ExtraSamples
             break;
         case 3: // Palette Color
             this.imageType = IfdImageType.PaletteColor

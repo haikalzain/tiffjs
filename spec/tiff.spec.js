@@ -1,26 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { TiffDecoder } = require('..');
+
 function readImage(name) {
     return fs.readFileSync(path.join(__dirname, '../img', name));
 }
-
-describe('bitbuffer reads correctly', () => {
-    it('reads simple correctly', () => {
-
-    })
-})
-
-describe('decodes strips correctly', () => {
-    it('decodes little endian rgb strip', () => {
-
-    });
-
-    it('decodes big endian rgb strip', () => {
-
-    })
-
-});
 
 describe('reads tiff correctly', () => {
     it('reads black.tif correctly', () => {
@@ -29,7 +13,7 @@ describe('reads tiff correctly', () => {
         const result = decoder.decode(data);
         expect(result.height).toEqual(2690);
         expect(result.width).toEqual(9192);
-        expect(result.data.length).toEqual(result.height * result.width * 3);
+        expect(result.data.length).toEqual(result.height * result.width * 4);
         /*if(result.data.length === result.height * result.width * 3) {
             for (let i = 0; i < result.height * result.width * 3; i++) {
                 if(i %10000 === 0)console.log(i);
@@ -59,4 +43,37 @@ describe('reads tiff correctly', () => {
             expect(result.getRgb(i, 2)[2]).toEqual(255);
         }
     })
+
+    it('reads rgb-3c-8b.tiff', () => {
+        const data = readImage('rgb-3c-8b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads palette-1c-8b.tiff', () => {
+        const data = readImage('palette-1c-8b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads palette-1c-4b.tiff', () => {
+        const data = readImage('palette-1c-4b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads palette-1c-1b.tiff', () => {
+        const data = readImage('palette-1c-1b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
+        expect(result.data).toMatchSnapshot();
+    });
+
 });
