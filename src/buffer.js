@@ -52,7 +52,9 @@ ByteBuffer.prototype.clone = function() {
 
 ByteBuffer.prototype.slice = function(offset, length) {
     const byteArray = new Uint8Array(this.buffer, this.byteArray.byteOffset + offset, length);
-    return new ByteBuffer(byteArray);
+    const buf = new ByteBuffer(byteArray);
+    buf.setLittleEndian(this.littleEndian);
+    return buf;
 }
 
 ByteBuffer.prototype.atEnd = function() {

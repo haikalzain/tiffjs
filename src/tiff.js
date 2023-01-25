@@ -76,8 +76,9 @@ TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
 }
 
 TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
-    while(!buf.atEnd()) {
-        const v = buf.readUint8();
+    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
+    while(!atEnd()) {
+        const v = readNext();
         if(ifdMeta.pmi === 0) {
             if(v === 0) {
                 builder.addRgb(0xff, 0xff, 0xff);
@@ -95,27 +96,26 @@ TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
 }
 
 TiffDecoder.prototype.decodeGrayscale = function(ifdMeta, buf, builder) {
-    const maxColor = (2 ** ifdMeta.bitsPerSample) - 1;
-    while(!buf.atEnd()) {
-        // assume v <= maxColor
-        let rawValue = buf.readUint8();
+    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
+    while(!atEnd()) {
+        let v = readNext();
         if(ifdMeta.pmi === 0) {
-            rawValue = maxColor - rawValue;
+            v = 255 - v;
         }
-        const v = 255 * rawValue / maxColor;
         builder.addRgb(v, v, v);
     }
 }
 
 TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf, builder) {
-    while(!buf.atEnd()) {
-        // assume bits per sample is 8, 8, 8
-        const r = buf.readUint8();
-        const g = buf.readUint8();
-        const b = buf.readUint8();
+    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample[0], ifdMeta.width);
+
+    while(!atEnd()) {
+        const r = readNext();
+        const g = readNext();
+        const b = readNext();
         // TODO finish supporting extrasamples
         if(ifdMeta.samplesPerPixel === 4) {
-            const a = buf.readUint8();
+            const a = readNext();
             builder.addRgba(r, g, b, a);
         } else {
             builder.addRgb(r, g, b);
@@ -128,7 +128,7 @@ function getBitReader(buf, n, columnLength) {
         return [() => buf.readUint8(), () => buf.atEnd()];
     }
     if(n === 16) {
-        return [() => buf.readUint16(), () => buf.atEnd()];
+        return [() => Math.floor(buf.readUint16() / 256), () => buf.atEnd()];
     }
     const bitBuffer = new BitBuffer(buf);
     let counter = 0;
@@ -329,10 +329,8 @@ IfdMetaData.prototype._inferStripByteCounts = function(
 
 /*
 Notes
-- how do we pack bitsPerSample = 4?
 - dealing with bitsPerSample > 8
-- we should probably not be downsampling 48bit rgb
-- support big endian
+- Planar configuration
 
  */
 

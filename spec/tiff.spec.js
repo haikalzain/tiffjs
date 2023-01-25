@@ -52,6 +52,14 @@ describe('reads tiff correctly', () => {
         expect(result.data).toMatchSnapshot();
     });
 
+    it('reads rgb-3c-16b.tiff', () => {
+        const data = readImage('rgb-3c-16b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
+        expect(result.data).toMatchSnapshot();
+    });
+
     it('reads palette-1c-8b.tiff', () => {
         const data = readImage('palette-1c-8b.tiff');
         const result = new TiffDecoder().decode(data);
@@ -76,4 +84,11 @@ describe('reads tiff correctly', () => {
         expect(result.data).toMatchSnapshot();
     });
 
+    it('reads cells.tif', () => {
+        const data = readImage('cells.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(2048);
+        expect(result.height).toEqual(2048);
+        //expect(result.data).toMatchSnapshot();
+    });
 });
