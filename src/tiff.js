@@ -1,5 +1,6 @@
 const {lookupType, Tag} = require("./constants");
 const {ByteBuffer, BitBuffer} = require("./buffer");
+const {LzwDecompress} = require('./lzw');
 
 function TiffDecoder() {
 }
@@ -72,7 +73,7 @@ TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
     if(ifdMeta.compression === 1) {
         return strip;
     }
-    return new LzwDecompress().decompress(strip);
+    return new ByteBuffer(new LzwDecompress().decompress(strip));
 }
 
 TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
@@ -329,7 +330,7 @@ IfdMetaData.prototype._inferStripByteCounts = function(
 
 /*
 Notes
-- dealing with bitsPerSample > 8
+- dealing with float32
 - Planar configuration
 
  */

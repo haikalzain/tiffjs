@@ -91,4 +91,20 @@ describe('reads tiff correctly', () => {
         expect(result.height).toEqual(2048);
         //expect(result.data).toMatchSnapshot();
     });
+
+    it('reads lzw-single-strip.tiff', () => {
+        const data = readImage('lzw-single-strip.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(7795);
+        expect(result.height).toEqual(400);
+        //expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads color8-lzw.tif', () => {
+        const data = readImage('color8-lzw.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(160);
+        expect(result.height).toEqual(120);
+        //expect(result.data).toMatchSnapshot();
+    });
 });
