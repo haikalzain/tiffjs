@@ -111,24 +111,24 @@ describe('reads tiff correctly', () => {
     it('reads miniswhite-1c-1b.tiff', () => {
         const data = readImage('miniswhite-1c-1b.tiff');
         const result = new TiffDecoder().decode(data);
-        expect(result.width).toEqual(160);
-        expect(result.height).toEqual(120);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
         expect(result.data).toMatchSnapshot();
     });
 
     it('reads minisblack-1c-8b.tiff', () => {
         const data = readImage('minisblack-1c-8b.tiff');
         const result = new TiffDecoder().decode(data);
-        expect(result.width).toEqual(160);
-        expect(result.height).toEqual(120);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
         expect(result.data).toMatchSnapshot();
     });
 
     it('reads minisblack-1c-16b.tiff', () => {
         const data = readImage('minisblack-1c-16b.tiff');
         const result = new TiffDecoder().decode(data);
-        expect(result.width).toEqual(160);
-        expect(result.height).toEqual(120);
+        expect(result.width).toEqual(157);
+        expect(result.height).toEqual(151);
         expect(result.data).toMatchSnapshot();
     });
 

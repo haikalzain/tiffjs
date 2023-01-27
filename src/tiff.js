@@ -150,9 +150,33 @@ function getBitReader(buf, n, columnLength) {
     ];
 }
 
+function getPaletteBitReader(buf, n, columnLength) {
+    if(n === 8) {
+        return [() => buf.readUint8(), () => buf.atEnd()];
+    }
+    if(n === 16) {
+        return [() => buf.readUint16(), () => buf.atEnd()];
+    }
+    const bitBuffer = new BitBuffer(buf);
+    let counter = 0;
+    return [
+        () => {
+            const v = bitBuffer.readBits(n);
+            counter++;
+            // ensure that bytes are aligned to columns
+            if(columnLength === counter) {
+                counter = 0;
+                bitBuffer.skipRemainingBits();
+            }
+            return Math.floor(v);
+        },
+        () => bitBuffer.atEnd()
+    ];
+}
+
 TiffDecoder.prototype.decodePaletteColor = function(ifdMeta, buf, builder) {
     const l = ifdMeta.colorMap.length / 3;
-    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
+    const [readNext, atEnd] = getPaletteBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
     while(!atEnd()) {
         // TODO verify if colors are correct
         const v = readNext();
