@@ -71,6 +71,7 @@ BitBuffer.prototype.readBits = function(n) {
     let result = 0;
     while(n > 0) {
         if (this.remainingBits === 0) {
+            if(this.buffer.atEnd()) return result; // handle weird erroneous behaviour in some images
             this.cachedByte = this.buffer.readUint8();
             this.remainingBits += 8;
         } else if (this.remainingBits !== 8) {

@@ -96,7 +96,7 @@ describe('reads tiff correctly', () => {
         const data = readImage('lzw-single-strip.tiff');
         const result = new TiffDecoder().decode(data);
         expect(result.width).toEqual(7795);
-        expect(result.height).toEqual(400);
+        expect(result.height).toEqual(3122);
         //expect(result.data).toMatchSnapshot();
     });
 
@@ -107,4 +107,38 @@ describe('reads tiff correctly', () => {
         expect(result.height).toEqual(120);
         //expect(result.data).toMatchSnapshot();
     });
+
+    it('reads miniswhite-1c-1b.tiff', () => {
+        const data = readImage('miniswhite-1c-1b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(160);
+        expect(result.height).toEqual(120);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads minisblack-1c-8b.tiff', () => {
+        const data = readImage('minisblack-1c-8b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(160);
+        expect(result.height).toEqual(120);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads minisblack-1c-16b.tiff', () => {
+        const data = readImage('minisblack-1c-16b.tiff');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(160);
+        expect(result.height).toEqual(120);
+        expect(result.data).toMatchSnapshot();
+    });
+
+    it('reads image-lzw.tif', () => {
+        const data = readImage('image-lzw.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(2590);
+        expect(result.height).toEqual(3062);
+        //expect(result.data).toMatchSnapshot();
+    });
 });
+
+// TODO hash snapshots of large images

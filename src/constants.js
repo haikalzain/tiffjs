@@ -38,6 +38,7 @@ const Tag = {
     XResolution: 282,
     YResolution: 283,
     ResolutionUnit: 296,
+    Predictor: 317,
     ColorMap: 320
 }
 

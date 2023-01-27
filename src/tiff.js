@@ -21,9 +21,7 @@ TiffDecoder.prototype.decode = function(data) {
 
     const ifdOffset = buf.readUint32();
     buf.seek(ifdOffset);
-    const ifd = this.decodeIfd(buf);
-
-    return ifd;
+    return this.decodeIfd(buf);
 }
 
 TiffDecoder.prototype.decodeIfdMeta = function(buf) {
@@ -73,7 +71,10 @@ TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
     if(ifdMeta.compression === 1) {
         return strip;
     }
-    return new ByteBuffer(new LzwDecompress().decompress(strip));
+    if(ifdMeta.compression === 5) {
+        return new ByteBuffer(new LzwDecompress().decompress(strip));
+    }
+    throw new Error(`Unsupported compression value: ${ifdMeta.compression}`);
 }
 
 TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
@@ -131,6 +132,7 @@ function getBitReader(buf, n, columnLength) {
     if(n === 16) {
         return [() => Math.floor(buf.readUint16() / 256), () => buf.atEnd()];
     }
+    const maxVal = (1 << n) - 1;
     const bitBuffer = new BitBuffer(buf);
     let counter = 0;
     return [
@@ -142,7 +144,7 @@ function getBitReader(buf, n, columnLength) {
                 counter = 0;
                 bitBuffer.skipRemainingBits();
             }
-            return v;
+            return Math.floor(v * 255 / maxVal);
         },
         () => bitBuffer.atEnd()
     ];
@@ -248,6 +250,7 @@ function IfdMetaData(map) {
     this.stripByteCounts = map.get(Tag.StripByteCounts);
     this.rowsPerStrip = map.get(Tag.RowsPerStrip)[0];
     this.compression = map.get(Tag.Compression)[0];
+    this.predictor = map.get(Tag.Predictor) == null ? 1 : map.get(Tag.Predictor)[0];
 
 
     // should set image type
