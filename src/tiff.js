@@ -72,9 +72,31 @@ TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
         return strip;
     }
     if(ifdMeta.compression === 5) {
-        return new ByteBuffer(new LzwDecompress().decompress(strip));
+        const data = new LzwDecompress().decompress(strip);
+        if(ifdMeta.predictor === 2) {
+            this.applyPredictor(data, ifdMeta.bitsPerSample, ifdMeta.samplesPerPixel, ifdMeta.width);
+        }
+        return new ByteBuffer(data);
     }
     throw new Error(`Unsupported compression value: ${ifdMeta.compression}`);
+}
+
+TiffDecoder.prototype.applyPredictor = function(byteArray, bitsPerSample, samplesPerPixel, width) {
+    let data = byteArray;
+    let mask = 255;
+    if(bitsPerSample === 16) {
+        data = new Uint16Array(byteArray);
+        mask = 65535;
+    }
+    if(bitsPerSample !== 8) {
+        // don't support 1, 2, 4 bits for now
+        throw new Error(`Unsupported bits per sample for predictor : ${bitsPerSample}`);
+    }
+
+    for(let i=0;i<data.length;i++) {
+        if(i % (width * samplesPerPixel) < samplesPerPixel) continue;
+        data[i] = (data[i] + data[i - samplesPerPixel]) & mask;
+    }
 }
 
 TiffDecoder.prototype.decodeBilevel = function(ifdMeta, buf, builder) {
@@ -109,7 +131,7 @@ TiffDecoder.prototype.decodeGrayscale = function(ifdMeta, buf, builder) {
 }
 
 TiffDecoder.prototype.decodeRgb = function(ifdMeta, buf, builder) {
-    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample[0], ifdMeta.width);
+    const [readNext, atEnd] = getBitReader(buf, ifdMeta.bitsPerSample, ifdMeta.width);
 
     while(!atEnd()) {
         const r = readNext();
@@ -290,16 +312,18 @@ function IfdMetaData(map) {
             }
             this.imageType = IfdImageType.Grayscale;
             this.bitsPerSample = map.get(Tag.BitsPerSample)[0];
+            this.samplesPerPixel = 1;
             break;
         case 2: // RGB
             this.imageType = IfdImageType.Rgb;
-            this.bitsPerSample = map.get(Tag.BitsPerSample); // TODO parse 1, 4, 16 bit
+            this.bitsPerSample = map.get(Tag.BitsPerSample)[0]; // assume bits per each rgb are the same
             this.samplesPerPixel = map.get(Tag.SamplesPerPixel)[0];
             // TODO also need to parse ExtraSamples
             break;
         case 3: // Palette Color
             this.imageType = IfdImageType.PaletteColor
             this.bitsPerSample = map.get(Tag.BitsPerSample)[0];
+            this.samplesPerPixel = 1;
             this.colorMap = map.get(Tag.ColorMap);
             if(this.colorMap.length !== (2 ** this.bitsPerSample) * 3) {
                 throw new Error(`Color map length ${this.colorMap.length} 

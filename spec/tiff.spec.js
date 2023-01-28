@@ -105,7 +105,26 @@ describe('reads tiff correctly', () => {
         const result = new TiffDecoder().decode(data);
         expect(result.width).toEqual(160);
         expect(result.height).toEqual(120);
-        //expect(result.data).toMatchSnapshot();
+        const expected = new TiffDecoder().decode(readImage('color8.tif'));
+        expect(result).toEqual(expected);
+    });
+
+    it('reads color16-lzw.tif', () => {
+        const data = readImage('color16-lzw.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(160);
+        expect(result.height).toEqual(120);
+        const expected = new TiffDecoder().decode(readImage('color16.tif'));
+        expect(result).toEqual(expected);
+    });
+
+    it('reads grey8-lzw.tif', () => {
+        const data = readImage('grey8-lzw.tif');
+        const result = new TiffDecoder().decode(data);
+        expect(result.width).toEqual(30);
+        expect(result.height).toEqual(90);
+        const expected = new TiffDecoder().decode(readImage('grey8.tif'));
+        expect(result).toEqual(expected);
     });
 
     it('reads miniswhite-1c-1b.tiff', () => {
