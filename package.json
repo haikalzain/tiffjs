@@ -1,15 +1,16 @@
 {
-  "name": "tiff_practice",
+  "name": "tiffjs",
   "version": "1.0.0",
-  "description": "",
+  "description": "Tiff decoder for the web",
+  "repository": "https://github.com/haikalzain/tiffjs",
   "main": "src/tiff.js",
   "scripts": {
     "test": "jest",
     "build": "webpack build",
     "watch": "webpack watch"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Haikal Zain",
+  "license": "MIT",
   "devDependencies": {
     "jest": "^29.3.1",
     "webpack": "^5.75.0",
