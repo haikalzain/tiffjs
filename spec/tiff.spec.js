@@ -22,6 +22,21 @@ describe('reads tiff correctly', () => {
         }*/
     });
 
+    it('reads black-packbits.tiff correctly', () => {
+        const data = readImage('black-packbits.tiff');
+        const decoder = new TiffDecoder();
+        const result = decoder.decode(data);
+        expect(result.height).toEqual(2690);
+        expect(result.width).toEqual(9192);
+        expect(result.data.length).toEqual(result.height * result.width * 4);
+        /*if(result.data.length === result.height * result.width * 3) {
+            for (let i = 0; i < result.height * result.width * 3; i++) {
+                if(i %10000 === 0)console.log(i);
+                //expect(result.data[i]).toEqual(0);
+            }
+        }*/
+    });
+
     it('reads palette.tif correctly', () => {
         const data = readImage('palette.tif');
         const result = new TiffDecoder().decode(data);

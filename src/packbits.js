@@ -1,5 +1,3 @@
-const {ByteBuffer} = require("./buffer");
-
 // function BufWriter(byteArray) {
 // }
 //
@@ -15,9 +13,8 @@ const {ByteBuffer} = require("./buffer");
 //     return ret;
 // }
 
-function Packbits() {}
-
-Packbits.prototype._encode_chunk = function(byteArray, start, cnt, r) {
+function PackBitsEncoder() {}
+PackBitsEncoder.prototype._encode_chunk = function(byteArray, start, cnt, r) {
     output = []
     if (cnt === 0) {
         return output
@@ -35,7 +32,7 @@ Packbits.prototype._encode_chunk = function(byteArray, start, cnt, r) {
     return output
 }
 
-Packbits.prototype.encode = function(byteArray) {
+PackBitsEncoder.prototype.encode = function(byteArray) {
     const output = []
     let cnt = 1
     let prev = byteArray[0]
@@ -75,7 +72,9 @@ Packbits.prototype.encode = function(byteArray) {
     return new Uint8Array(output)
 }
 
-Packbits.prototype.decode = function(buffer) {
+function PackBitsDecoder() {}
+
+PackBitsDecoder.prototype.decode = function(buffer) {
     const output = []
     while(!buffer.atEnd()){
         let n = buffer.readInt8()
@@ -103,56 +102,14 @@ Packbits.prototype.decode = function(buffer) {
     return new Uint8Array(output)
 }
 
-const encodeMaps = [
-    [
-        [0xAA, 0xAA, 0xAA, 0xBB, 0xCC, 0xDD, 0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA],
-        [0xFE, 0xAA, 0x02, 0xBB, 0xCC, 0xDD, 0xFD, 0xAA, 0x03, 0xBB, 0xCC, 0xDD, 0xEE, 0xF7, 0xAA],
-    ],
-    [
-        [0xAA],
-        [0x00, 0xAA],
-    ],
-    [
-        [0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA],
-        [0xF9, 0xAA],
-    ],
-    [
-        [0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xBB],
-        [0xF9, 0xAA, 0x00, 0xBB],
-    ],
-    [
-        [0xA0, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8],
-        [0x07, 0xA0, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8],
-    ],
-    [
-        [0xA0, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA8],
-        [0x06, 0xA0, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xFF, 0xA8],
-    ],
-]
 
-function testEncode() {
-    let pb = new Packbits()
-    for (let test of encodeMaps) {
-        let testDecoded = new Uint8Array(test[0])
-        let testEncoded = new Uint8Array(test[1])
-        let encoded = pb.encode(testDecoded)
-        console.log(encoded, testEncoded, "\n\n")
-        console.assert( encoded.toString() === testEncoded.toString(), `actual: ${encoded} expected: ${testEncoded}`)
-    }
+
+
+module.exports = {
+    PackBitsEncoder,
+    PackBitsDecoder
 }
 
-function testDecode() {
-    let pb = new Packbits()
-    for (let test of encodeMaps) {
-        let testDecoded = new Uint8Array(test[0])
-        let testEncoded = new Uint8Array(test[1])
-        let decoded = pb.decode(new ByteBuffer(testEncoded))
-        console.log(decoded, testDecoded, "\n\n")
-        console.assert(decoded.toString() === testDecoded.toString(), `actual: ${decoded} expected: ${testDecoded}`)
-    }
-    console.log("testDecode complete")
-}
-
-testEncode()
-testDecode()
+// testEncode()
+// testDecode()
 

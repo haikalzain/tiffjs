@@ -1,7 +1,7 @@
 let tiffDecoder = new tiff.TiffDecoder();
 
 (async function() {
-    const img = await fetch('../img/black.tif');
+    const img = await fetch('../img/black-packbits.tiff');
     const imgBytes = new Uint8Array(await img.arrayBuffer());
     let data = tiffDecoder.decode(imgBytes);
     const imgData = data.data;

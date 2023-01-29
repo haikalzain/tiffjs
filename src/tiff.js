@@ -1,6 +1,7 @@
 const {lookupType, Tag} = require("./constants");
 const {ByteBuffer, BitBuffer} = require("./buffer");
 const {LzwDecompress} = require('./lzw');
+const {PackBitsDecoder} = require('./packbits');
 
 function TiffDecoder() {
 }
@@ -76,6 +77,10 @@ TiffDecoder.prototype.decompressStrip = function(ifdMeta, strip) {
         if(ifdMeta.predictor === 2) {
             this.applyPredictor(data, ifdMeta.bitsPerSample, ifdMeta.samplesPerPixel, ifdMeta.width);
         }
+        return new ByteBuffer(data);
+    }
+    if(ifdMeta.compression === 32773) {
+        const data = new PackBitsDecoder().decode(strip)
         return new ByteBuffer(data);
     }
     throw new Error(`Unsupported compression value: ${ifdMeta.compression}`);
@@ -346,7 +351,7 @@ function IfdMetaData(map) {
     }
 
     // TODO support other compression types
-    if(this.compression !== 1 && this.compression !== 5) {
+    if(this.compression !== 1 && this.compression !== 5 && this.compression !== 32773) {
         throw new Error(`Unsupported compression type ${this.compression}`);
     }
 }
