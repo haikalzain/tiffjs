@@ -36,6 +36,12 @@ ByteBuffer.prototype.readUint32 = function() {
     return ret;
 }
 
+ByteBuffer.prototype.readInt8 = function() {
+    const ret = this.data.getInt8(this.offset);
+    this.offset++;
+    return ret;
+}
+
 ByteBuffer.prototype.seek = function(i) {
     this.offset = i;
 }
